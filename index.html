@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Remi — Live Build Log</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Remi <span class="subtitle">// live build log</span></h1>
+      <div class="last-updated" id="lastUpdated"></div>
+    </header>
+
+    <section class="metrics" id="metrics">
+      <div class="metric">
+        <span class="metric-value" id="tasksCompleted">—</span>
+        <span class="metric-label">tasks</span>
+      </div>
+      <div class="metric">
+        <span class="metric-value" id="linesAdded">—</span>
+        <span class="metric-label">lines added</span>
+      </div>
+      <div class="metric">
+        <span class="metric-value" id="linesRemoved">—</span>
+        <span class="metric-label">lines removed</span>
+      </div>
+      <div class="metric">
+        <span class="metric-value" id="testsPassing">—</span>
+        <span class="metric-label">tests</span>
+      </div>
+      <div class="metric">
+        <span class="metric-value" id="totalCommits">—</span>
+        <span class="metric-label">commits</span>
+      </div>
+    </section>
+
+    <section class="tab-bar">
+      <button class="tab-btn active" data-tab="feed">Live Feed</button>
+      <button class="tab-btn" data-tab="commits">Commit History</button>
+    </section>
+
+    <section class="feed-controls" id="feedControls">
+      <div class="search-wrapper">
+        <input
+          type="text"
+          id="searchInput"
+          placeholder="search feed..."
+          autocomplete="off"
+          spellcheck="false"
+        >
+        <button class="clear-btn" id="clearBtn" aria-label="Clear search">&times;</button>
+      </div>
+      <div class="feed-count" id="feedCount"></div>
+    </section>
+
+    <section class="commit-controls" id="commitControls" style="display:none;">
+      <div class="commit-filters">
+        <button class="filter-btn active" data-range="7">Last 7 days</button>
+        <button class="filter-btn" data-range="30">Last 30 days</button>
+        <button class="filter-btn" data-range="all">All time</button>
+      </div>
+      <div class="feed-count" id="commitCount"></div>
+    </section>
+
+    <section class="no-results" id="noResults" style="display:none;">
+      <p>no results for "<span id="noResultsTerm"></span>"</p>
+    </section>
+
+    <section class="feed" id="feed"></section>
+    <section class="commits" id="commits" style="display:none;"></section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
