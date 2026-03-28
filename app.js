@@ -12,23 +12,48 @@ let currentSearch = '';
 let cachedFeed = null;
 
 async function fetchFeed() {
-  const MAX_RETRIES = 3;
-  const delays = [1000, 2000, 4000]; // exponential backoff: 1s, 2s, 4s
-
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      const res = await fetch(FEED_URL, { cache: 'no-store' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
-    } catch (err) {
-      if (attempt === MAX_RETRIES) {
-        console.error(`Feed fetch failed after ${MAX_RETRIES} retries:`, err);
-        return null;
-      }
-      console.error(`Feed fetch failed (attempt ${attempt + 1}/${MAX_RETRIES}), retrying in ${delays[attempt]}ms...`, err);
-      await new Promise(r => setTimeout(r, delays[attempt]));
-    }
+  try {
+    const res = await fetch(FEED_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const feed = await res.json();
+    try { localStorage.setItem('cachedFeed', JSON.stringify(feed)); } catch(e) {}
+    return feed;
+  } catch (err) {
+    console.error('Feed fetch failed:', err);
+    return null;
   }
+}
+
+function getCachedFeed() {
+  try {
+    const raw = localStorage.getItem('cachedFeed');
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) {
+    return null;
+  }
+}
+
+let staleWarningDismissed = false;
+
+function showStaleWarning() {
+  if (staleWarningDismissed) return;
+  let banner = document.getElementById('staleBanner');
+  if (banner) return;
+  banner = document.createElement('div');
+  banner.id = 'staleBanner';
+  banner.className = 'stale-banner';
+  banner.innerHTML = 'Showing cached data — feed unavailable <button id="dismissStale" class="stale-dismiss">dismiss</button>';
+  const container = document.querySelector('.container');
+  if (container) container.insertBefore(banner, container.firstChild);
+  document.getElementById('dismissStale').addEventListener('click', () => {
+    banner.remove();
+    staleWarningDismissed = true;
+  });
+}
+
+function hideStaleWarning() {
+  const banner = document.getElementById('staleBanner');
+  if (banner) banner.remove();
 }
 
 function timeAgo(isoString) {
@@ -367,13 +392,28 @@ async function refresh() {
   updateStatus(feed);
 
   if (!feed) {
-    feedEl.style.display = 'none';
-    errorEl.style.display = 'block';
+    const cached = getCachedFeed();
+    if (cached) {
+      cachedFeed = cached;
+      showStaleWarning();
+      updateMetrics(cached.metrics);
+      drawCommitSparkline(cached.feed);
+      updateWorkingOn(cached);
+      initProjectFilters(cached.feed);
+      renderFeed(filterEntries(cached.feed), false);
+      const updated = document.getElementById('feedUpdated');
+      if (updated) updated.textContent = 'updated ' + timeAgo(cached.lastUpdated) + ' (cached)';
+    } else {
+      feedEl.style.display = 'none';
+      errorEl.style.display = 'block';
+    }
     return;
   }
 
   errorEl.style.display = 'none';
   feedEl.style.display = '';
+  hideStaleWarning();
+  staleWarningDismissed = false;
 
   const hash = feedHash(feed);
   const isNew = lastFeedHash !== null && hash !== lastFeedHash;
