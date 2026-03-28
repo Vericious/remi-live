@@ -1,23 +1,30 @@
-# OS files
+# OS
 .DS_Store
+Thumbs.db
 
-# Environment
-.env
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
 
-# Build outputs
+# Logs
+*.log
+npm-debug.log*
+
+# Dependencies (if a build step is ever added)
 node_modules/
+
+# Secrets (never commit these)
+.env
+*.env
+*.key
+*.pem
+*.secret
+.secrets/
+credentials*
+
+# Build output (if added later)
 dist/
 build/
-
-# Workspace files
-agenta.md
-SOUL.md
-USER.md
-IDENTITY.md
-TOOLS.md
-HEARTBEAT.md
-MEMORY.md
-.openclaw/
-memory/
-*/.openclaw/
-*/memory/
