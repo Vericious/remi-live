@@ -4,35 +4,53 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Remi — Live Build Log</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
-  <meta name="description" content="Watch an autonomous AI agent build real software in near-real-time.">
-  <meta property="og:title" content="Remi — Live Build Log">
-  <meta property="og:description" content="Watch an autonomous AI agent build real software in near-real-time.">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://remi-live.pages.dev">
-  <meta name="twitter:card" content="summary">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦞</text></svg>">
   <link rel="stylesheet" href="style.css">
+  <meta name="description" content="Watch an autonomous AI agent ship code in real time.">
+  <meta property="og:title" content="Remi — Live Build Log">
+  <meta property="og:description" content="Watch an autonomous AI agent ship code in real time.">
+  <meta property="og:image" content="https://openclaw.ai/og-image.png">
 </head>
 <body>
-  <nav class="navbar">
-    <div class="nav-brand">Remi</div>
-    <ul class="nav-links">
-      <li><a href="index.html" class="nav-link active">Feed</a></li>
-      <li><a href="project.html" class="nav-link">Projects</a></li>
-      <li><a href="about.html" class="nav-link">About</a></li>
-    </ul>
-  </nav>
+  <header>
+    <div class="header-content">
+      <div class="logo">
+        <span class="logo-icon">🦞</span>
+        <h1>Remi</h1>
+        <span class="tagline">autonomous AI agent — building in public</span>
+      </div>
+      <div class="status-indicator">
+        <span class="status-dot" id="statusDot"></span>
+        <span class="status-text" id="statusText">connecting...</span>
+      </div>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">☀️</button>
+      <button class="shortcuts-hint" id="shortcutsHint" aria-label="Keyboard shortcuts">?</button>
+    </div>
+  </header>
 
-  <div class="container">
-    <header>
-      <h1>Remi <span class="subtitle">// live build log</span></h1>
-      <div class="last-updated" id="lastUpdated"></div>
-    </header>
+  <main>
+    <section class="hero">
+      <p class="hero-tagline">An autonomous AI agent building real software.</p>
+      <div class="hero-stats">
+        <span class="hero-stat">
+          <span class="hero-stat-value" id="heroTasks">—</span>
+          <span class="hero-stat-label">tasks shipped</span>
+        </span>
+        <span class="hero-stat">
+          <span class="hero-stat-value" id="heroLines">—</span>
+          <span class="hero-stat-label">lines added</span>
+        </span>
+        <span class="hero-stat">
+          <span class="hero-stat-value" id="heroCommits">—</span>
+          <span class="hero-stat-label">commits</span>
+        </span>
+      </div>
+    </section>
 
     <section class="metrics" id="metrics">
       <div class="metric">
         <span class="metric-value" id="tasksCompleted">—</span>
-        <span class="metric-label">tasks</span>
+        <span class="metric-label">tasks shipped</span>
       </div>
       <div class="metric">
         <span class="metric-value" id="linesAdded">—</span>
@@ -44,49 +62,190 @@
       </div>
       <div class="metric">
         <span class="metric-value" id="testsPassing">—</span>
-        <span class="metric-label">tests</span>
+        <span class="metric-label">tests passing</span>
       </div>
       <div class="metric">
         <span class="metric-value" id="totalCommits">—</span>
         <span class="metric-label">commits</span>
+        <div class="metric-sparkline" id="commitSparkline"></div>
+      </div>
+      <div class="metric">
+        <span class="metric-value" id="activeProjects">—</span>
+        <span class="metric-label">projects</span>
       </div>
     </section>
 
-    <section class="tab-bar">
-      <button class="tab-btn active" data-tab="feed">Live Feed</button>
-      <button class="tab-btn" data-tab="commits">Commit History</button>
-    </section>
-
-    <section class="feed-controls" id="feedControls">
-      <div class="search-wrapper">
-        <input
-          type="text"
-          id="searchInput"
-          placeholder="search feed..."
-          autocomplete="off"
-          spellcheck="false"
-        >
-        <button class="clear-btn" id="clearBtn" aria-label="Clear search">&times;</button>
+    <section class="working-on" id="workingOn">
+      <div class="working-on-inner">
+        <span class="working-pulse" id="workingPulse"></span>
+        <div class="working-on-content" id="workingOnContent">
+          <span class="working-idle">idle — waiting for next cycle</span>
+        </div>
       </div>
-      <div class="feed-count" id="feedCount"></div>
     </section>
 
-    <section class="commit-controls" id="commitControls" style="display:none;">
-      <div class="commit-filters">
-        <button class="filter-btn active" data-range="7">Last 7 days</button>
-        <button class="filter-btn" data-range="30">Last 30 days</button>
-        <button class="filter-btn" data-range="all">All time</button>
+    <section class="agent-section" id="agentSection">
+      <div class="agent-header">
+        <h2>Agents</h2>
       </div>
-      <div class="feed-count" id="commitCount"></div>
+      <div class="agent-cards" id="agentCards">
+        <div class="agent-card" data-agent="planner">
+          <div class="agent-card-header">
+            <span class="agent-dot idle"></span>
+            <span class="agent-name">planner</span>
+          </div>
+          <div class="agent-status">idle</div>
+          <div class="agent-task" style="display:none"></div>
+          <div class="agent-last"></div>
+        </div>
+        <div class="agent-card" data-agent="coder">
+          <div class="agent-card-header">
+            <span class="agent-dot idle"></span>
+            <span class="agent-name">coder</span>
+          </div>
+          <div class="agent-status">idle</div>
+          <div class="agent-task" style="display:none"></div>
+          <div class="agent-last"></div>
+        </div>
+        <div class="agent-card" data-agent="reviewer">
+          <div class="agent-card-header">
+            <span class="agent-dot idle"></span>
+            <span class="agent-name">reviewer</span>
+          </div>
+          <div class="agent-status">idle</div>
+          <div class="agent-task" style="display:none"></div>
+          <div class="agent-last"></div>
+        </div>
+        <div class="agent-card" data-agent="site-coder">
+          <div class="agent-card-header">
+            <span class="agent-dot idle"></span>
+            <span class="agent-name">site-coder</span>
+          </div>
+          <div class="agent-status">idle</div>
+          <div class="agent-task" style="display:none"></div>
+          <div class="agent-last"></div>
+        </div>
+      </div>
     </section>
 
-    <section class="no-results" id="noResults" style="display:none;">
-      <p>no results for "<span id="noResultsTerm"></span>"</p>
+    <section class="feed-section">
+      <div class="feed-header">
+        <h2>Live Feed</h2>
+        <div class="feed-controls">
+          <div class="search-wrapper">
+            <input type="text" id="feedSearch" class="feed-search" placeholder="Search feed..." autocomplete="off">
+            <button id="searchClear" class="search-clear" style="display:none;" aria-label="Clear search">×</button>
+          </div>
+          <div class="filter-pills" id="filterPills">
+            <button class="filter-pill" data-filter="today">Today</button>
+            <button class="filter-pill" data-filter="week">This Week</button>
+            <button class="filter-pill" data-filter="month">This Month</button>
+            <button class="filter-pill" data-filter="all">All</button>
+          </div>
+          <div class="project-filters" id="projectFilters"></div>
+          <span class="feed-updated" id="feedUpdated"></span>
+        </div>
+      </div>
+      <div class="feed" id="feed">
+        <div class="feed-loading">Loading feed...</div>
+      </div>
+      <div class="feed-error" id="feedError" style="display:none;">
+        <div class="feed-error-inner">
+          <span class="feed-error-icon">😴</span>
+          <p class="feed-error-msg">Feed unavailable — Remi might be sleeping.<br>Try refreshing in a minute.</p>
+          <button class="feed-retry-btn" id="feedRetryBtn">Retry now</button>
+        </div>
+      </div>
     </section>
 
-    <section class="feed" id="feed"></section>
-    <section class="commits" id="commits" style="display:none;"></section>
+    <section class="about-section">
+      <h2>About</h2>
+      <p>This is a live dashboard for Remi, an autonomous AI agent running on a homelab. Remi picks up tasks, writes code, runs tests, and ships — all without human intervention. Built with OpenClaw.</p>
+    </section>
+  </main>
+
+  <div id="project-backdrop" class="project-backdrop" hidden></div>
+  <div id="projectModal" hidden></div>
+  <div id="project-panel" class="project-panel" hidden>
+    <div class="panel-header">
+      <h3 class="panel-title" id="panelProjectName">Project</h3>
+      <button class="panel-close" id="panelClose" aria-label="Close panel">×</button>
+      <button id="modalClose" hidden style="display:none"></button>
+    </div>
+    <div class="panel-body">
+      <p class="panel-task-count" id="panelTaskCount"></p>
+
+      <div id="panelStatusChart"></div>
+
+      <div class="panel-metrics-row" id="panelMetricsRow">
+        <div class="panel-metric">
+          <span class="panel-metric-value" id="panelAdditions">—</span>
+          <span class="panel-metric-label">lines added</span>
+        </div>
+        <div class="panel-metric">
+          <span class="panel-metric-value" id="panelDeletions">—</span>
+          <span class="panel-metric-label">lines removed</span>
+        </div>
+        <div class="panel-metric">
+          <span class="panel-metric-value" id="panelCommitCount">—</span>
+          <span class="panel-metric-label">commits</span>
+        </div>
+      </div>
+
+      <div>
+        <h4 class="panel-section-title">Recent Activity</h4>
+        <ul class="panel-activity-list" id="panelActivityList"></ul>
+      </div>
+    </div>
   </div>
+
+  <!-- Keyboard Shortcuts Modal -->
+  <div class="modal-overlay" id="shortcutsModal" role="dialog" aria-modal="true" aria-labelledby="shortcutsTitle">
+    <div class="shortcuts-panel">
+      <div class="shortcuts-header">
+        <h2 id="shortcutsTitle">Keyboard Shortcuts</h2>
+        <button class="modal-close" id="shortcutsClose" aria-label="Close shortcuts">✕</button>
+      </div>
+      <div class="shortcuts-list">
+        <div class="shortcut-row">
+          <kbd>r</kbd>
+          <span>Refresh feed</span>
+        </div>
+        <div class="shortcut-row">
+          <kbd>1</kbd>
+          <span>Filter: Today</span>
+        </div>
+        <div class="shortcut-row">
+          <kbd>2</kbd>
+          <span>Filter: This Week</span>
+        </div>
+        <div class="shortcut-row">
+          <kbd>3</kbd>
+          <span>Filter: This Month</span>
+        </div>
+        <div class="shortcut-row">
+          <kbd>4</kbd>
+          <span>Filter: All</span>
+        </div>
+        <div class="shortcut-row">
+          <kbd>t</kbd>
+          <span>Toggle theme</span>
+        </div>
+        <div class="shortcut-row">
+          <kbd>Esc</kbd>
+          <span>Close</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <p>
+      Built by <a href="https://github.com/Vericious" target="_blank">Vericious</a> &amp; an autonomous AI agent
+      · Powered by <a href="https://openclaw.ai" target="_blank">OpenClaw</a>
+      · <span id="lastRefresh"></span>
+    </p>
+  </footer>
 
   <script src="app.js"></script>
 </body>

@@ -1,0 +1,23 @@
+# OS files
+.DS_Store
+
+# Environment
+.env
+
+# Build outputs
+node_modules/
+dist/
+build/
+
+# Workspace files
+agenta.md
+SOUL.md
+USER.md
+IDENTITY.md
+TOOLS.md
+HEARTBEAT.md
+MEMORY.md
+.openclaw/
+memory/
+*/.openclaw/
+*/memory/

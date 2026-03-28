@@ -5,55 +5,36 @@ const FEED_URL = 'https://remi-feed.vericious.workers.dev/feed.json'; // Replace
 const REFRESH_INTERVAL = 60_000; // 1 minute
 
 let lastFeedHash = null;
-let rafId = null;
+const rafIds = new WeakMap();
 let currentFilter = 'all';
 let currentProject = 'all';
 let currentSearch = '';
 let cachedFeed = null;
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function fetchFeed() {
-  try {
-    const res = await fetch(FEED_URL, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const feed = await res.json();
-    try { localStorage.setItem('cachedFeed', JSON.stringify(feed)); } catch(e) {}
-    return feed;
-  } catch (err) {
-    console.error('Feed fetch failed:', err);
-    return null;
+  const delays = [1000, 2000, 4000]; // exponential backoff: 1s, 2s, 4s
+  let lastError;
+
+  for (let attempt = 0; attempt < delays.length; attempt++) {
+    try {
+      const res = await fetch(FEED_URL, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      lastError = err;
+      if (attempt < delays.length) {
+        await sleep(delays[attempt]);
+      }
+    }
   }
-}
 
-function getCachedFeed() {
-  try {
-    const raw = localStorage.getItem('cachedFeed');
-    return raw ? JSON.parse(raw) : null;
-  } catch(e) {
-    return null;
-  }
-}
-
-let staleWarningDismissed = false;
-
-function showStaleWarning() {
-  if (staleWarningDismissed) return;
-  let banner = document.getElementById('staleBanner');
-  if (banner) return;
-  banner = document.createElement('div');
-  banner.id = 'staleBanner';
-  banner.className = 'stale-banner';
-  banner.innerHTML = 'Showing cached data — feed unavailable <button id="dismissStale" class="stale-dismiss">dismiss</button>';
-  const container = document.querySelector('.container');
-  if (container) container.insertBefore(banner, container.firstChild);
-  document.getElementById('dismissStale').addEventListener('click', () => {
-    banner.remove();
-    staleWarningDismissed = true;
-  });
-}
-
-function hideStaleWarning() {
-  const banner = document.getElementById('staleBanner');
-  if (banner) banner.remove();
+  // All retries exhausted — call error handler
+  console.error('Feed fetch failed after 3 attempts:', lastError);
+  return null;
 }
 
 function timeAgo(isoString) {
@@ -73,6 +54,7 @@ function formatNumber(n) {
 function updateStatus(feed) {
   const dot = document.getElementById('statusDot');
   const text = document.getElementById('statusText');
+  if (!dot || !text) return;
 
   if (!feed) {
     dot.className = 'status-dot error';
@@ -96,9 +78,11 @@ function updateStatus(feed) {
 }
 
 function animateValue(el, endValue, duration) {
-  if (rafId) {
-    cancelAnimationFrame(rafId);
-    rafId = null;
+  if (!el) return;
+  const existing = rafIds.get(el);
+  if (existing) {
+    cancelAnimationFrame(existing);
+    rafIds.delete(el);
   }
 
   const startValue = parseFloat(el.dataset.animValue) || 0;
@@ -114,15 +98,15 @@ function animateValue(el, endValue, duration) {
     el.dataset.animValue = current;
 
     if (progress < 1) {
-      rafId = requestAnimationFrame(tick);
+      rafIds.set(el, requestAnimationFrame(tick));
     } else {
       el.textContent = formatNumber(endValue);
       el.dataset.animValue = endValue;
-      rafId = null;
+      rafIds.delete(el);
     }
   }
 
-  rafId = requestAnimationFrame(tick);
+  rafIds.set(el, requestAnimationFrame(tick));
 }
 
 function updateMetrics(metrics) {
@@ -133,13 +117,18 @@ function updateMetrics(metrics) {
   animateValue(document.getElementById('testsPassing'), metrics.testsPassing, 500);
   animateValue(document.getElementById('totalCommits'), metrics.totalCommits, 500);
   const activeProjectsEl = document.getElementById('activeProjects');
-  activeProjectsEl.textContent = metrics.projects?.length || '—';
-  activeProjectsEl.dataset.animValue = metrics.projects?.length || 0;
+  if (activeProjectsEl) {
+    activeProjectsEl.textContent = metrics.projects?.length || '—';
+    activeProjectsEl.dataset.animValue = metrics.projects?.length || 0;
+  }
 
   // Update hero stats
-  document.getElementById('heroTasks').textContent = formatNumber(metrics.tasksCompleted);
-  document.getElementById('heroLines').textContent = formatNumber(metrics.linesAdded);
-  document.getElementById('heroCommits').textContent = formatNumber(metrics.totalCommits);
+  const heroTasks = document.getElementById('heroTasks');
+  const heroLines = document.getElementById('heroLines');
+  const heroCommits = document.getElementById('heroCommits');
+  if (heroTasks) heroTasks.textContent = formatNumber(metrics.tasksCompleted);
+  if (heroLines) heroLines.textContent = formatNumber(metrics.linesAdded);
+  if (heroCommits) heroCommits.textContent = formatNumber(metrics.totalCommits);
 }
 
 function drawCommitSparkline(entries) {
@@ -183,6 +172,7 @@ function updateWorkingOn(feed) {
   const section = document.getElementById('workingOn');
   const content = document.getElementById('workingOnContent');
   const pulse = document.getElementById('workingPulse');
+  if (!section || !content || !pulse) return;
 
   if (!feed?.feed) return;
 
@@ -258,6 +248,7 @@ function esc(str) {
 
 function renderFeed(entries, forceNew) {
   const container = document.getElementById('feed');
+  if (!container) return;
 
   if (!entries || entries.length === 0) {
     if (currentSearch) {
@@ -392,28 +383,13 @@ async function refresh() {
   updateStatus(feed);
 
   if (!feed) {
-    const cached = getCachedFeed();
-    if (cached) {
-      cachedFeed = cached;
-      showStaleWarning();
-      updateMetrics(cached.metrics);
-      drawCommitSparkline(cached.feed);
-      updateWorkingOn(cached);
-      initProjectFilters(cached.feed);
-      renderFeed(filterEntries(cached.feed), false);
-      const updated = document.getElementById('feedUpdated');
-      if (updated) updated.textContent = 'updated ' + timeAgo(cached.lastUpdated) + ' (cached)';
-    } else {
-      feedEl.style.display = 'none';
-      errorEl.style.display = 'block';
-    }
+    if (feedEl) feedEl.style.display = 'none';
+    if (errorEl) errorEl.style.display = 'block';
     return;
   }
 
   errorEl.style.display = 'none';
   feedEl.style.display = '';
-  hideStaleWarning();
-  staleWarningDismissed = false;
 
   const hash = feedHash(feed);
   const isNew = lastFeedHash !== null && hash !== lastFeedHash;
@@ -436,6 +412,7 @@ async function refresh() {
   updateMetrics(feed.metrics);
   drawCommitSparkline(feed.feed);
   updateWorkingOn(feed);
+  updateAgentCards(feed);
   initProjectFilters(feed.feed);
   renderFeed(filterEntries(feed.feed), isNew);
 
@@ -584,27 +561,230 @@ setInterval(refresh, REFRESH_INTERVAL);
 // Retry button
 document.getElementById('feedRetryBtn')?.addEventListener('click', refresh);
 
+// Scroll-to-top button
+const scrollBtn = document.createElement('button');
+scrollBtn.id = 'scrollToTop';
+scrollBtn.setAttribute('aria-label', 'Scroll to top');
+scrollBtn.innerHTML = '↑';
+scrollBtn.style.cssText = 'position:fixed;bottom:20px;right:20px;width:44px;height:44px;border-radius:50%;border:none;background:var(--accent,#ff6b35);color:#fff;font-size:1.5rem;cursor:pointer;opacity:0;pointer-events:none;transition:opacity 0.3s;z-index:999;';
+document.body.appendChild(scrollBtn);
+
+window.addEventListener('scroll', () => {
+  scrollBtn.style.opacity = window.scrollY > 300 ? '1' : '0';
+  scrollBtn.style.pointerEvents = window.scrollY > 300 ? 'auto' : 'none';
+}, { passive: true });
+
+scrollBtn.addEventListener('click', () => {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
 // Theme toggle
 function initTheme() {
   const saved = localStorage.getItem('theme');
+  const themeToggle = document.getElementById('themeToggle');
   if (saved === 'light') {
     document.documentElement.dataset.theme = 'light';
-    document.getElementById('themeToggle').textContent = '🌙';
+    if (themeToggle) themeToggle.textContent = '🌙';
   }
 }
 
 function toggleTheme() {
   const isLight = document.documentElement.dataset.theme === 'light';
+  const themeToggle = document.getElementById('themeToggle');
+  if (!themeToggle) return;
   if (isLight) {
     delete document.documentElement.dataset.theme;
     localStorage.setItem('theme', 'dark');
-    document.getElementById('themeToggle').textContent = '☀️';
+    themeToggle.textContent = '☀️';
   } else {
     document.documentElement.dataset.theme = 'light';
     localStorage.setItem('theme', 'light');
-    document.getElementById('themeToggle').textContent = '🌙';
+    themeToggle.textContent = '🌙';
   }
 }
 
 document.getElementById('themeToggle')?.addEventListener('click', toggleTheme);
 initTheme();
+
+// Keyboard shortcuts
+const shortcutsModal = document.getElementById('shortcutsModal');
+const shortcutsClose = document.getElementById('shortcutsClose');
+const shortcutsHint = document.getElementById('shortcutsHint');
+
+function showShortcuts() {
+  if (!shortcutsModal) return;
+  shortcutsModal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function hideShortcuts() {
+  if (!shortcutsModal) return;
+  shortcutsModal.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+shortcutsHint?.addEventListener('click', showShortcuts);
+shortcutsClose?.addEventListener('click', hideShortcuts);
+shortcutsModal?.addEventListener('click', (e) => {
+  if (e.target === shortcutsModal) hideShortcuts();
+});
+
+document.addEventListener('keydown', (e) => {
+  // Don't fire shortcuts when typing in search or other inputs
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+  switch (e.key) {
+    case 'r':
+    case 'R':
+      refresh();
+      break;
+    case '1':
+      setFilter('today');
+      break;
+    case '2':
+      setFilter('week');
+      break;
+    case '3':
+      setFilter('month');
+      break;
+    case '4':
+      setFilter('all');
+      break;
+    case 't':
+    case 'T':
+      toggleTheme();
+      break;
+    case '?':
+      showShortcuts();
+      break;
+    case 'Escape':
+      hideShortcuts();
+      break;
+    case '/':
+      document.getElementById('feedSearch')?.focus();
+      break;
+  }
+});
+
+// Project detail modal
+const modal = document.getElementById('projectModal');
+const modalClose = document.getElementById('modalClose');
+
+// Project panel
+function showProjectPanel(projectName) {
+  const panel = document.getElementById('project-panel');
+  const backdrop = document.getElementById('project-backdrop');
+  const titleEl = document.getElementById('panelProjectName');
+  const countEl = document.getElementById('panelTaskCount');
+  const listEl = document.getElementById('panelActivityList');
+
+  if (!panel || !cachedFeed?.feed) return;
+  if (!backdrop || !titleEl || !countEl || !listEl) return;
+
+  const projectEntries = cachedFeed.feed.filter(e => e.project === projectName);
+  const recentEntries = projectEntries
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+    .slice(0, 5);
+
+  titleEl.textContent = projectName;
+  countEl.textContent = `${projectEntries.length} total task${projectEntries.length !== 1 ? 's' : ''}`;
+
+  listEl.innerHTML = recentEntries.length
+    ? recentEntries.map(e => `
+        <li class="panel-activity-item">
+          <span class="panel-activity-id">${esc(e.id)}</span>
+          <span class="panel-activity-title">${esc(e.title || '—')}</span>
+          <span class="panel-activity-time">${timeAgo(e.timestamp)}</span>
+        </li>
+      `).join('')
+    : '<li class="panel-activity-empty">No recent activity</li>';
+
+  panel.hidden = false;
+  backdrop.hidden = false;
+  backdrop.style.display = '';
+  panel.style.transform = '';
+}
+
+function closeProjectPanel() {
+  const panel = document.getElementById('project-panel');
+  const backdrop = document.getElementById('project-backdrop');
+  if (panel) panel.hidden = true;
+  if (backdrop) {
+    backdrop.hidden = true;
+    backdrop.style.display = 'none';
+  }
+}
+
+function initProjectPanel() {
+  const closeBtn = document.getElementById('panelClose');
+  const backdrop = document.getElementById('project-backdrop');
+
+  closeBtn?.addEventListener('click', closeProjectPanel);
+  backdrop?.addEventListener('click', closeProjectPanel);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeProjectPanel();
+  });
+
+  // Delegate click on .entry-project badges in the feed
+  document.getElementById('feed')?.addEventListener('click', (e) => {
+    const badge = e.target.closest('.entry-project');
+    if (badge) {
+      const projectName = badge.textContent.trim();
+      if (projectName) showProjectPanel(projectName);
+    }
+  });
+}
+
+// Agent status cards
+const KNOWN_AGENTS = ['planner', 'coder', 'reviewer', 'site-coder'];
+
+function updateAgentCards(feed) {
+  const agents = feed?.feed || [];
+
+  KNOWN_AGENTS.forEach(agentName => {
+    const card = document.querySelector(`.agent-card[data-agent="${agentName}"]`);
+    if (!card) return;
+
+    const dot = card.querySelector('.agent-dot');
+    const status = card.querySelector('.agent-status');
+    const task = card.querySelector('.agent-task');
+    const last = card.querySelector('.agent-last');
+
+    // Find most recent entry for this agent
+    const agentEntries = agents
+      .filter(e => e.agent === agentName)
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    const latest = agentEntries[0];
+    const now = Date.now();
+    const ACTIVE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
+
+    if (!latest) {
+      dot.className = 'agent-dot idle';
+      status.textContent = 'no activity';
+      if (task) task.style.display = 'none';
+      if (last) last.textContent = '';
+      return;
+    }
+
+    const ageMs = now - new Date(latest.timestamp).getTime();
+    const isActive = ageMs < ACTIVE_THRESHOLD_MS;
+
+    dot.className = `agent-dot ${isActive ? 'active' : 'idle'}`;
+    status.textContent = isActive ? 'active' : 'idle';
+
+    if (task) {
+      if (isActive && latest.id && latest.title) {
+        task.style.display = '';
+        task.innerHTML = `<span class="agent-task-id">${esc(latest.id)}</span> ${esc(latest.title)}`;
+      } else {
+        task.style.display = 'none';
+      }
+    }
+
+    if (last) {
+      last.textContent = `last: ${timeAgo(latest.timestamp)}`;
+    }
+  });
+}
