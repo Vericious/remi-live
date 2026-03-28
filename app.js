@@ -12,13 +12,22 @@ let currentSearch = '';
 let cachedFeed = null;
 
 async function fetchFeed() {
-  try {
-    const res = await fetch(FEED_URL, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } catch (err) {
-    console.error('Feed fetch failed:', err);
-    return null;
+  const MAX_RETRIES = 3;
+  const delays = [1000, 2000, 4000]; // exponential backoff: 1s, 2s, 4s
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(FEED_URL, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      if (attempt === MAX_RETRIES) {
+        console.error(`Feed fetch failed after ${MAX_RETRIES} retries:`, err);
+        return null;
+      }
+      console.error(`Feed fetch failed (attempt ${attempt + 1}/${MAX_RETRIES}), retrying in ${delays[attempt]}ms...`, err);
+      await new Promise(r => setTimeout(r, delays[attempt]));
+    }
   }
 }
 
