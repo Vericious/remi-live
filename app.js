@@ -583,14 +583,28 @@ scrollBtn.addEventListener('click', () => {
 function initTheme() {
   const saved = localStorage.getItem('theme');
   const themeToggle = document.getElementById('themeToggle');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
   if (saved === 'light') {
     document.documentElement.dataset.theme = 'light';
     if (themeToggle) {
       themeToggle.textContent = '🌙';
       themeToggle.setAttribute('aria-pressed', 'true');
     }
-  } else if (themeToggle) {
-    themeToggle.setAttribute('aria-pressed', 'false');
+  } else if (saved === 'dark') {
+    if (themeToggle) themeToggle.setAttribute('aria-pressed', 'false');
+  } else {
+    // No saved preference — fall back to system preference
+    if (prefersDark) {
+      // Default dark: no dataset.theme set, themeToggle shows ☀️ (dark mode icon)
+      if (themeToggle) themeToggle.setAttribute('aria-pressed', 'false');
+    } else {
+      document.documentElement.dataset.theme = 'light';
+      if (themeToggle) {
+        themeToggle.textContent = '🌙';
+        themeToggle.setAttribute('aria-pressed', 'true');
+      }
+    }
   }
 }
 
