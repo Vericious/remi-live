@@ -481,6 +481,11 @@ h1 {
     flex-wrap: wrap;
   }
 
+  .header {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
   .commit-entry {
     grid-template-columns: 1fr;
     gap: 0.25rem;
@@ -744,4 +749,38 @@ h1 {
 .stale-dismiss:hover {
   background: var(--yellow);
   color: var(--bg);
+}
+
+/* 12. LIGHT THEME */
+[data-theme="light"] {
+  --bg: #ffffff;
+  --surface: #f6f8fa;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --muted: #656d76;
+  --accent: #0969da;
+  --green: #1a7f37;
+  --red: #cf222e;
+  --yellow: #9a6700;
+}
+
+/* Feed error state */
+.feed-error {
+  background: var(--surface);
+  border: 1px solid var(--red);
+  border-radius: 6px;
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+.feed-error button {
+  margin-top: 0.75rem;
+  padding: 0.5rem 1rem;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
 }
