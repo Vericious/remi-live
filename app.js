@@ -51,6 +51,11 @@ function formatNumber(n) {
   return n.toLocaleString();
 }
 
+function formatPercent(n) {
+  if (n == null) return '—';
+  return `${Math.round(n)}%`;
+}
+
 function updateStatus(feed) {
   const dot = document.getElementById('statusDot');
   const text = document.getElementById('statusText');
@@ -77,7 +82,7 @@ function updateStatus(feed) {
   }
 }
 
-function animateValue(el, endValue, duration) {
+function animateValue(el, endValue, duration, isPercent) {
   if (!el) return;
   const existing = rafIds.get(el);
   if (existing) {
@@ -94,13 +99,13 @@ function animateValue(el, endValue, duration) {
     // Ease out cubic
     const eased = 1 - Math.pow(1 - progress, 3);
     const current = startValue + (endValue - startValue) * eased;
-    el.textContent = formatNumber(Math.round(current));
+    el.textContent = isPercent ? formatPercent(current) : formatNumber(Math.round(current));
     el.dataset.animValue = current;
 
     if (progress < 1) {
       rafIds.set(el, requestAnimationFrame(tick));
     } else {
-      el.textContent = formatNumber(endValue);
+      el.textContent = isPercent ? formatPercent(endValue) : formatNumber(endValue);
       el.dataset.animValue = endValue;
       rafIds.delete(el);
     }
@@ -111,7 +116,18 @@ function animateValue(el, endValue, duration) {
 
 function updateMetrics(metrics) {
   if (!metrics) return;
-  animateValue(document.getElementById('tasksCompleted'), metrics.tasksCompleted, 500);
+  // tasksCompleted may be an object { done, total } or a plain number
+  const tasksDone = typeof metrics.tasksCompleted === 'object'
+    ? metrics.tasksCompleted.done
+    : metrics.tasksCompleted;
+  const tasksTotal = typeof metrics.tasksCompleted === 'object'
+    ? metrics.tasksCompleted.total
+    : null;
+  const completionRate = (tasksTotal && tasksTotal > 0)
+    ? (tasksDone / tasksTotal) * 100
+    : null;
+
+  animateValue(document.getElementById('tasksCompleted'), tasksDone, 500);
   animateValue(document.getElementById('linesAdded'), metrics.linesAdded, 500);
   animateValue(document.getElementById('linesRemoved'), metrics.linesRemoved, 500);
   animateValue(document.getElementById('testsPassing'), metrics.testsPassing, 500);
@@ -126,9 +142,17 @@ function updateMetrics(metrics) {
   const heroTasks = document.getElementById('heroTasks');
   const heroLines = document.getElementById('heroLines');
   const heroCommits = document.getElementById('heroCommits');
-  if (heroTasks) heroTasks.textContent = formatNumber(metrics.tasksCompleted);
+  const heroCompletion = document.getElementById('heroCompletion');
+  if (heroTasks) heroTasks.textContent = formatNumber(tasksDone);
   if (heroLines) heroLines.textContent = formatNumber(metrics.linesAdded);
   if (heroCommits) heroCommits.textContent = formatNumber(metrics.totalCommits);
+  if (heroCompletion) {
+    if (completionRate !== null) {
+      animateValue(heroCompletion, completionRate, 500, true);
+    } else {
+      heroCompletion.textContent = '—';
+    }
+  }
 }
 
 function drawCommitSparkline(entries) {
