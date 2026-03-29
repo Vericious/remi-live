@@ -5,12 +5,14 @@ Supports:
   - SQLite tasks.db for task counts
   - Fallback to TASKS.md regex parsing when DB is unavailable
   - TASKS_DB_PATH environment variable to override the default path
+  - Git log parsing for feed entries
 """
 
 import json
 import os
 import re
 import sqlite3
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -106,6 +108,79 @@ def load_task_counts_from_tasks_md(path: Path) -> dict | None:
     }
 
 
+def parse_git_log(repo_path: str | Path | None = None, limit: int = 50) -> list[dict]:
+    """Parse recent git log to produce feed entries.
+
+    Uses git log --format='%H|%ai|%s|%an' --numstat to get commits with diff stats.
+
+    Returns list of feed entry dicts with: id, timestamp, project, title,
+    agent, additions, deletions.
+    """
+    cmd = [
+        "git", "-C", str(repo_path or "."),
+        "log", "--format=%H|%ai|%s|%an",
+        "--numstat",
+        f"-{limit}",
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return []
+
+    entries = []
+    current_commit = None
+
+    for line in result.stdout.splitlines():
+        if not line:
+            continue  # Skip blank lines
+        if "\t" in line:
+            # Numstat line: additions<tab>deletions<tab>path
+            if current_commit is not None:
+                parts = line.split("\t")
+                if len(parts) >= 2:
+                    add_str, del_str = parts[0], parts[1]
+                    if add_str.isdigit():
+                        current_commit["additions"] = current_commit.get("additions", 0) + int(add_str)
+                    if del_str.isdigit():
+                        current_commit["deletions"] = current_commit.get("deletions", 0) + int(del_str)
+        elif "|" in line:
+            # Commit header: hash|iso_timestamp|subject|author
+            parts = line.split("|")
+            if len(parts) >= 4:
+                _commit_hash, timestamp, subject, author = parts[0], parts[1], parts[2], parts[3]
+                # Extract task ID from subject (e.g., "feat(SITE-083): ...", "fix(DRIFT-147): ...")
+                id_match = re.search(r"\b((?:SITE|DRIFT|VER|HEALTH|TEST)-\d+)\b", subject)
+                task_id = id_match.group(1) if id_match else None
+
+                # Extract project from task ID
+                if task_id:
+                    project = task_id.split("-")[0].lower()
+                    if project == "site":
+                        project = "showcase"
+                else:
+                    project = "unknown"
+
+                # Normalize timestamp to ISO format (e.g., "2026-03-29 14:59:43 +0000" → "2026-03-29T14:59:43Z")
+                ts = timestamp.replace(" ", "T", 1)
+                # Replace +0000 UTC offset with Z (handle trailing space before offset)
+                ts = re.sub(r"\s*[+-]\d{4}$", "Z", ts)
+
+                current_commit = {
+                    "id": task_id or subject[:20],
+                    "timestamp": ts,
+                    "project": project,
+                    "title": subject,
+                    "summary": None,
+                    "agent": author or "unknown",
+                    "model": None,
+                    "additions": 0,
+                    "deletions": 0,
+                }
+                entries.append(current_commit)
+
+    return entries
+
+
 def generate_feed_metrics() -> dict:
     """Generate feed metrics from tasks.db with TASKS.md fallback."""
     db_path = get_db_path()
@@ -132,14 +207,27 @@ def generate_feed_metrics() -> dict:
     }
 
 
-def generate_feed_json(output_path: str | None = None) -> str:
-    """Generate feed.json and optionally write to disk."""
+def generate_feed_json(
+    repo_path: str | Path | None = None,
+    output_path: str | None = None,
+    feed_limit: int = 50,
+) -> str:
+    """Generate feed.json with metrics and recent git log entries.
+
+    Args:
+        repo_path: Path to git repository (defaults to current directory).
+        output_path: Path to write feed.json (optional).
+        feed_limit: Number of git log entries to include in feed.
+
+    Returns the feed.json as a JSON string.
+    """
     metrics = generate_feed_metrics()
+    feed_entries = parse_git_log(repo_path, limit=feed_limit)
 
     feed_data = {
         "lastUpdated": datetime.now(timezone.utc).isoformat(),
         "metrics": metrics,
-        "feed": [],  # Feed entries populated by caller (git log, etc.)
+        "feed": feed_entries,
     }
 
     json_str = json.dumps(feed_data, indent=2)
@@ -152,7 +240,7 @@ def generate_feed_json(output_path: str | None = None) -> str:
 
 if __name__ == "__main__":
     output = sys.argv[1] if len(sys.argv) > 1 else "/home/openclaw/.openclaw/data/feed.json"
-    result = generate_feed_json(output)
+    result = generate_feed_json(output_path=output)
     # Write directly to stdout for interactive use; file write happens inside generate_feed_json
     if output == "-":
         print(result)
