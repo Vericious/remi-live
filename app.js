@@ -198,40 +198,38 @@ function updateWorkingOn(feed) {
 
 function renderEntry(entry, isNew) {
   const el = document.createElement('div');
-  el.className = `feed-entry${isNew ? ' new' : ''}${entry.summary ? ' expandable' : ''}`;
+  el.className = `feed-card${isNew ? ' new' : ''}${entry.summary ? ' expandable' : ''}`;
 
   const statsHtml = [
-    entry.additions != null ? `<span class="stat-add">+${entry.additions}</span>` : '',
-    entry.deletions != null ? `<span class="stat-del">-${entry.deletions}</span>` : '',
+    entry.additions != null ? `<span class="stat-additions">+${entry.additions}</span>` : '',
+    entry.deletions != null ? `<span class="stat-deletions">-${entry.deletions}</span>` : '',
     entry.agent ? `<span class="stat-agent">${entry.agent}</span>` : '',
     entry.model ? `<span class="stat-model">${entry.model}</span>` : '',
   ].filter(Boolean).join('');
 
   const hasDetails = entry.summary || statsHtml;
   el.innerHTML = `
-    <div class="entry-header">
-      <div>
-        <span class="entry-id">${esc(entry.id)}</span>
+    <div class="card-id">${esc(entry.id)}</div>
+    <div class="card-body">
+      <div class="card-meta">
         <span class="entry-project">${esc(entry.project)}</span>
-      </div>
-      <div class="entry-header-right">
         <span class="entry-time">${timeAgo(entry.timestamp)}</span>
         ${hasDetails ? '<span class="entry-chevron">▾</span>' : ''}
       </div>
+      <div class="card-title">${esc(entry.title)}</div>
+      ${entry.summary ? `<div class="entry-summary" style="display:none">${esc(entry.summary)}</div>` : ''}
     </div>
-    <div class="entry-title">${esc(entry.title)}</div>
-    ${entry.summary ? `<div class="entry-summary" style="display:none">${esc(entry.summary)}</div>` : ''}
-    ${statsHtml ? `<div class="entry-stats" style="display:none">${statsHtml}</div>` : ''}
+    <div class="card-stats">
+      ${statsHtml}
+    </div>
   `;
 
   if (hasDetails) {
     el.addEventListener('click', () => {
       const summary = el.querySelector('.entry-summary');
-      const stats = el.querySelector('.entry-stats');
       const chevron = el.querySelector('.entry-chevron');
       const isOpen = summary && summary.style.display !== 'none';
       if (summary) summary.style.display = isOpen ? 'none' : '';
-      if (stats) stats.style.display = isOpen ? 'none' : '';
       if (chevron) chevron.textContent = isOpen ? '▾' : '▴';
     });
   }
@@ -665,76 +663,6 @@ document.addEventListener('keydown', (e) => {
       break;
   }
 });
-
-// Project detail modal
-const modal = document.getElementById('projectModal');
-const modalClose = document.getElementById('modalClose');
-
-// Project panel
-function showProjectPanel(projectName) {
-  const panel = document.getElementById('project-panel');
-  const backdrop = document.getElementById('project-backdrop');
-  const titleEl = document.getElementById('panelProjectName');
-  const countEl = document.getElementById('panelTaskCount');
-  const listEl = document.getElementById('panelActivityList');
-
-  if (!panel || !cachedFeed?.feed) return;
-  if (!backdrop || !titleEl || !countEl || !listEl) return;
-
-  const projectEntries = cachedFeed.feed.filter(e => e.project === projectName);
-  const recentEntries = projectEntries
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-    .slice(0, 5);
-
-  titleEl.textContent = projectName;
-  countEl.textContent = `${projectEntries.length} total task${projectEntries.length !== 1 ? 's' : ''}`;
-
-  listEl.innerHTML = recentEntries.length
-    ? recentEntries.map(e => `
-        <li class="panel-activity-item">
-          <span class="panel-activity-id">${esc(e.id)}</span>
-          <span class="panel-activity-title">${esc(e.title || '—')}</span>
-          <span class="panel-activity-time">${timeAgo(e.timestamp)}</span>
-        </li>
-      `).join('')
-    : '<li class="panel-activity-empty">No recent activity</li>';
-
-  panel.hidden = false;
-  backdrop.hidden = false;
-  backdrop.style.display = '';
-  panel.style.transform = '';
-}
-
-function closeProjectPanel() {
-  const panel = document.getElementById('project-panel');
-  const backdrop = document.getElementById('project-backdrop');
-  if (panel) panel.hidden = true;
-  if (backdrop) {
-    backdrop.hidden = true;
-    backdrop.style.display = 'none';
-  }
-}
-
-function initProjectPanel() {
-  const closeBtn = document.getElementById('panelClose');
-  const backdrop = document.getElementById('project-backdrop');
-
-  closeBtn?.addEventListener('click', closeProjectPanel);
-  backdrop?.addEventListener('click', closeProjectPanel);
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeProjectPanel();
-  });
-
-  // Delegate click on .entry-project badges in the feed
-  document.getElementById('feed')?.addEventListener('click', (e) => {
-    const badge = e.target.closest('.entry-project');
-    if (badge) {
-      const projectName = badge.textContent.trim();
-      if (projectName) showProjectPanel(projectName);
-    }
-  });
-}
 
 // Agent status cards
 const KNOWN_AGENTS = ['planner', 'coder', 'reviewer', 'site-coder'];
