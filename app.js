@@ -5,7 +5,6 @@ const FEED_URL = 'https://remi-feed.vericious.workers.dev/feed.json'; // Replace
 const REFRESH_INTERVAL = 60_000; // 1 minute
 
 let lastFeedHash = null;
-const rafIds = new WeakMap();
 let currentFilter = 'all';
 let currentProject = 'all';
 let currentSearch = '';
@@ -79,10 +78,9 @@ function updateStatus(feed) {
 
 function animateValue(el, endValue, duration) {
   if (!el) return;
-  const existing = rafIds.get(el);
-  if (existing) {
-    cancelAnimationFrame(existing);
-    rafIds.delete(el);
+  if (el._rafId != null) {
+    cancelAnimationFrame(el._rafId);
+    el._rafId = null;
   }
 
   const startValue = parseFloat(el.dataset.animValue) || 0;
@@ -98,15 +96,15 @@ function animateValue(el, endValue, duration) {
     el.dataset.animValue = current;
 
     if (progress < 1) {
-      rafIds.set(el, requestAnimationFrame(tick));
+      el._rafId = requestAnimationFrame(tick);
     } else {
       el.textContent = formatNumber(endValue);
       el.dataset.animValue = endValue;
-      rafIds.delete(el);
+      el._rafId = null;
     }
   }
 
-  rafIds.set(el, requestAnimationFrame(tick));
+  el._rafId = requestAnimationFrame(tick);
 }
 
 function updateMetrics(metrics) {
