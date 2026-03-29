@@ -225,6 +225,8 @@ function renderEntry(entry, isNew) {
   `;
 
   if (hasDetails) {
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-expanded', 'false');
     el.addEventListener('click', () => {
       const summary = el.querySelector('.entry-summary');
       const stats = el.querySelector('.entry-stats');
@@ -233,6 +235,7 @@ function renderEntry(entry, isNew) {
       if (summary) summary.style.display = isOpen ? 'none' : '';
       if (stats) stats.style.display = isOpen ? 'none' : '';
       if (chevron) chevron.textContent = isOpen ? '▾' : '▴';
+      el.setAttribute('aria-expanded', String(!isOpen));
     });
   }
 
@@ -584,7 +587,12 @@ function initTheme() {
   const themeToggle = document.getElementById('themeToggle');
   if (saved === 'light') {
     document.documentElement.dataset.theme = 'light';
-    if (themeToggle) themeToggle.textContent = '🌙';
+    if (themeToggle) {
+      themeToggle.textContent = '🌙';
+      themeToggle.setAttribute('aria-pressed', 'true');
+    }
+  } else if (themeToggle) {
+    themeToggle.setAttribute('aria-pressed', 'false');
   }
 }
 
@@ -596,10 +604,12 @@ function toggleTheme() {
     delete document.documentElement.dataset.theme;
     localStorage.setItem('theme', 'dark');
     themeToggle.textContent = '☀️';
+    themeToggle.setAttribute('aria-pressed', 'false');
   } else {
     document.documentElement.dataset.theme = 'light';
     localStorage.setItem('theme', 'light');
     themeToggle.textContent = '🌙';
+    themeToggle.setAttribute('aria-pressed', 'true');
   }
 }
 

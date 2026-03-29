@@ -29,7 +29,7 @@
         <span class="status-dot" id="statusDot"></span>
         <span class="status-text" id="statusText">connecting...</span>
       </div>
-      <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">☀️</button>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme" aria-pressed="false">☀️</button>
       <button class="shortcuts-hint" id="shortcutsHint" aria-label="Keyboard shortcuts">?</button>
     </div>
   </header>
@@ -139,14 +139,14 @@
         <h2>Live Feed</h2>
         <div class="feed-controls">
           <div class="search-wrapper">
-            <input type="text" id="feedSearch" class="feed-search" placeholder="Search feed..." autocomplete="off">
+            <input type="text" id="feedSearch" class="feed-search" placeholder="Search feed..." aria-label="Search feed" autocomplete="off">
             <button id="searchClear" class="search-clear" style="display:none;" aria-label="Clear search">×</button>
           </div>
           <div class="filter-pills" id="filterPills">
-            <button class="filter-pill" data-filter="today">Today</button>
-            <button class="filter-pill" data-filter="week">This Week</button>
-            <button class="filter-pill" data-filter="month">This Month</button>
-            <button class="filter-pill" data-filter="all">All</button>
+            <button class="filter-pill" data-filter="today" aria-label="Filter by today">Today</button>
+            <button class="filter-pill" data-filter="week" aria-label="Filter by this week">This Week</button>
+            <button class="filter-pill" data-filter="month" aria-label="Filter by this month">This Month</button>
+            <button class="filter-pill" data-filter="all" aria-label="Show all entries">All</button>
           </div>
           <div class="project-filters" id="projectFilters"></div>
           <span class="feed-updated" id="feedUpdated"></span>
@@ -159,7 +159,7 @@
         <div class="feed-error-inner">
           <span class="feed-error-icon">😴</span>
           <p class="feed-error-msg">Feed unavailable — Remi might be sleeping.<br>Try refreshing in a minute.</p>
-          <button class="feed-retry-btn" id="feedRetryBtn">Retry now</button>
+          <button class="feed-retry-btn" id="feedRetryBtn" aria-label="Retry loading feed">Retry now</button>
         </div>
       </div>
     </section>
