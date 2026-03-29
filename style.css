@@ -113,6 +113,83 @@ code, kbd {
   letter-spacing: 0.05em;
 }
 
+/* ── Working On ──────────────────────────────────────────────────────────── */
+.working-on {
+  max-width: var(--max-width);
+  margin: 0 auto 1.5rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: border-color 0.3s ease;
+}
+
+.working-on.active {
+  border-color: var(--green);
+  border-left: 3px solid var(--green);
+}
+
+.working-on-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.working-pulse {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--green);
+  flex-shrink: 0;
+  animation: pulse-ring 1.5s infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgba(63, 185, 80, 0);
+  }
+}
+
+.working-on-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  min-width: 0;
+}
+
+.working-idle {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.working-task-id {
+  font-family: var(--font-mono);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.working-title {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.working-agent {
+  font-size: 0.7rem;
+  color: var(--muted);
+  background: var(--bg);
+  padding: 0.1em 0.4em;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+
 /* ── Feed Controls ────────────────────────────────────────────────────────── */
 .feed-controls {
   display: flex;
