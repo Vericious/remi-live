@@ -84,11 +84,12 @@ code, kbd {
 
 /* ── Metrics ─────────────────────────────────────────────────────────────── */
 .metrics {
-  display: flex;
-  flex-wrap: wrap;
+  max-width: var(--max-width);
+  margin: 0 auto 1.5rem;
+  padding: 1rem 1.25rem;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
   gap: 1rem;
-  margin-bottom: 2rem;
-  padding: 1rem;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -97,20 +98,82 @@ code, kbd {
 .metric {
   display: flex;
   flex-direction: column;
-  min-width: 80px;
+  gap: 0.125rem;
+  position: relative;
+  padding-left: 1rem;
+}
+
+.metric:first-child {
+  padding-left: 0;
+}
+
+.metric + .metric::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
 }
 
 .metric-value {
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--accent);
+  font-family: var(--font-mono);
+  line-height: 1.2;
 }
 
 .metric-label {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
+}
+
+.metric-sparkline svg {
+  width: 100%;
+  max-width: 120px;
+  height: 28px;
+}
+
+.metric-sparkline .bar {
+  fill: var(--accent);
+  opacity: 0.6;
+  transition: opacity var(--transition);
+}
+
+.metric-sparkline .bar:hover {
+  opacity: 1;
+}
+
+@media (max-width: 768px) {
+  .metrics {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .metric:nth-child(4) {
+    padding-left: 0;
+  }
+
+  .metric:nth-child(4)::before {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .metric {
+    padding-left: 0;
+  }
+
+  .metric::before {
+    display: none;
+  }
 }
 
 /* ── Feed Controls ────────────────────────────────────────────────────────── */
