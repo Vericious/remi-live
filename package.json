@@ -1,0 +1,13 @@
+{
+  "name": "remi-live",
+  "version": "1.0.0",
+  "description": "Remi live showcase site",
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-vm-modules test/test_projects.js",
+    "test:projects": "node test/test_projects.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  }
+}
