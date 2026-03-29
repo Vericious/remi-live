@@ -1,6 +1,11 @@
-"""Tests for showcase/generate-feed.py."""
+"""Tests for showcase/generate-feed.py.
+
+SITE-062 tests: DB path config, SQLite query, TASKS.md fallback.
+SITE-073 tests: Feed schema, git log parsing, feed entry sorting.
+"""
 
 import os
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -12,21 +17,27 @@ _import_path = Path(__file__).parent.parent / "showcase" / "generate-feed.py"
 _spec = __import__("importlib.util").util.spec_from_file_location("_generate_feed", _import_path)
 _generate_feed = __import__("importlib.util").util.module_from_spec(_spec)
 _spec.loader.exec_module(_generate_feed)
+sys.modules["_generate_feed"] = _generate_feed  # Make available for tests
 
 # Expose functions for tests
 DEFAULT_DB_PATH = _generate_feed.DEFAULT_DB_PATH
 get_db_path = _generate_feed.get_db_path
 load_task_counts_from_db = _generate_feed.load_task_counts_from_db
 load_task_counts_from_tasks_md = _generate_feed.load_task_counts_from_tasks_md
+parse_git_log = _generate_feed.parse_git_log
 generate_feed_metrics = _generate_feed.generate_feed_metrics
+generate_feed_json = _generate_feed.generate_feed_json
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SITE-062: DB path, SQLite query, TASKS.md fallback
+# ─────────────────────────────────────────────────────────────────────────────
 
 class TestDbPath:
     """Test database path resolution."""
 
     def test_default_db_path(self) -> None:
         """Default path is /home/openclaw/.openclaw/data/tasks.db."""
-        # Remove env var if set
         os.environ.pop("TASKS_DB_PATH", None)
         assert get_db_path() == DEFAULT_DB_PATH
 
@@ -41,7 +52,7 @@ class TestDbPath:
             custom_path = str(Path(tmpdir) / "custom.db")
             monkeypatch.setenv("TASKS_DB_PATH", custom_path)
             assert get_db_path() == custom_path
-            # DB doesn't exist, should return None from load_task_counts_from_db
+            # DB doesn't exist, should return None
             result = load_task_counts_from_db(get_db_path())
             assert result is None
 
@@ -134,3 +145,124 @@ class TestGenerateFeedMetrics:
         metrics = generate_feed_metrics()
         assert "showcase" in metrics["tasksByProject"]
         assert metrics["tasksByProject"]["showcase"] == 72
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SITE-073: Feed schema, git log parsing, feed entry sorting
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestFeedJsonSchema:
+    """Test that generated feed.json has the correct schema."""
+
+    def test_feed_json_has_correct_schema(self) -> None:
+        """Top-level feed.json has lastUpdated, metrics, and feed fields."""
+        feed_json = generate_feed_json(repo_path=".")
+        import json
+        data = json.loads(feed_json)
+        assert set(data.keys()) == {"lastUpdated", "metrics", "feed"}
+        assert isinstance(data["lastUpdated"], str)
+        assert isinstance(data["metrics"], dict)
+        assert isinstance(data["feed"], list)
+
+    def test_feed_entry_has_required_fields(self) -> None:
+        """Each feed entry has required fields: id, timestamp, project, title."""
+        entries = parse_git_log(".")
+        if entries:
+            entry = entries[0]
+            assert "id" in entry
+            assert "timestamp" in entry
+            assert "project" in entry
+            assert "title" in entry
+            assert "additions" in entry
+            assert "deletions" in entry
+            assert "agent" in entry
+
+    def test_metrics_totals_correct(self) -> None:
+        """Metrics totals match actual task counts from database."""
+        metrics = generate_feed_metrics()
+        assert metrics["tasksCompleted"] == 51
+        assert metrics["tasksTotal"] == 136
+        assert metrics["tasksInProgress"] == 9
+
+    def test_per_project_metrics_populated(self) -> None:
+        """tasksByProject includes both drift and showcase with correct counts."""
+        metrics = generate_feed_metrics()
+        by_project = metrics["tasksByProject"]
+        assert by_project["drift"] == 60
+        assert by_project["showcase"] == 72
+        assert by_project["system"] == 4
+
+
+class TestGitLogParsing:
+    """Test git log parsing for feed entries."""
+
+    def test_git_log_parsing(self) -> None:
+        """parse_git_log extracts commit info, additions, deletions."""
+        entries = parse_git_log(".", limit=5)
+        assert len(entries) > 0
+
+        # Check first entry (most recent)
+        entry = entries[0]
+        assert entry["id"] == "SITE-062"
+        assert entry["project"] == "showcase"
+        assert "generate-feed.py" in entry["title"] or "generate" in entry["title"]
+        assert entry["additions"] > 0  # Should have additions
+
+    def test_git_log_extracts_task_id_from_commit_message(self) -> None:
+        """Task ID is extracted from commit subject (e.g., SITE-062, DRIFT-147)."""
+        entries = parse_git_log(".", limit=20)
+        ids = [e["id"] for e in entries]
+        # Should have at least one properly extracted task ID
+        assert any(re.match(r"^(SITE|DRIFT)-\d+$", tid) for tid in ids)
+
+    def test_git_log_extracts_project_from_task_id(self) -> None:
+        """Project is correctly derived from task ID prefix (SITE→showcase, DRIFT→drift)."""
+        entries = parse_git_log(".", limit=20)
+        for e in entries:
+            if e["id"].startswith("SITE-"):
+                assert e["project"] == "showcase"
+            elif e["id"].startswith("DRIFT-"):
+                assert e["project"] == "drift"
+
+    def test_feed_entries_sorted_by_timestamp(self) -> None:
+        """Feed entries are sorted by timestamp, newest first."""
+        import json
+        feed_json = generate_feed_json(repo_path=".", feed_limit=10)
+        data = json.loads(feed_json)
+        entries = data["feed"]
+
+        timestamps = [e["timestamp"] for e in entries]
+        assert timestamps == sorted(timestamps, reverse=True)
+
+
+class TestFallbackToTasksMdIntegration:
+    """Integration: full feed generation with TASKS.md fallback."""
+
+    def test_fallback_to_tasks_md(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """generate_feed_metrics uses TASKS.md when tasks.db is unavailable."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a fake TASKS.md
+            tasks_md = Path(tmpdir) / "TASKS.md"
+            tasks_md.write_text(
+                "- [ ] Item A\n"
+                "- [x] Item B\n"
+                "- [ ] Item C\n"
+            )
+
+            # Point DB to non-existent path and TASKS_MD_PATH to our temp file
+            monkeypatch.setenv("TASKS_DB_PATH", str(Path(tmpdir) / "no.db"))
+
+            # Temporarily override TASKS_MD_PATH in the module
+            # We access the module via sys.modules since we loaded it with importlib
+            gf_module = sys.modules.get("_generate_feed")
+            assert gf_module is not None
+            original_tasks_md = gf_module.TASKS_MD_PATH
+            gf_module.TASKS_MD_PATH = tasks_md
+
+            try:
+                metrics = gf_module.generate_feed_metrics()
+                assert metrics["source"] == "TASKS.md fallback"
+                assert metrics["tasksTotal"] == 3
+                assert metrics["tasksCompleted"] == 1
+            finally:
+                gf_module.TASKS_MD_PATH = original_tasks_md
